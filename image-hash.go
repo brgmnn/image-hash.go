@@ -8,56 +8,74 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"path"
+	"strconv"
 
 	"image"
 	"image/color"
 	_ "image/jpeg"
+	_ "image/png"
 
 	"github.com/nfnt/resize"
 )
 
 func main() {
-	var bd int
-	flag.IntVar(&bd, "bitdepth", 5, "The bitdepth.")
-	bitdepth := (uint16)(bd)
+	bd := flag.Int("bitdepth", 5, "The number of bits to rescale each pixel to.")
+	wd := flag.Int("size", 4, "The width.")
+	v := flag.Bool("v", false, "Verbose output.")
 
 	flag.Parse()
+
+	bitdepth := (uint16)(*bd)
+	width := (uint)(*wd)
+	verbose := (bool)(*v)
+
 	if len(flag.Args()) < 1 {
-		fmt.Println("No arguments given.")
+		fmt.Println("No images given.")
 		return
 	}
 
-	filepath := flag.Args()[0]
-	ext := path.Ext(filepath)
-
-	data, _ := ioutil.ReadFile(filepath)
-	imgraw, _, err := image.Decode(bytes.NewReader(data))
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	imgstd := resize.Resize(4, 0, imgraw, resize.Lanczos3)
-	bounds := imgstd.Bounds()
-
-	buf := new(bytes.Buffer)
-
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := imgstd.At(x, y)
-			g, _, _, _ := color.GrayModel.Convert(c).RGBA()
-			g >>= 16 - (uint)(bitdepth)
-
-			fmt.Println(g)
-			binary.Write(buf, binary.LittleEndian, g)
+	maxlen := 0
+	for _, fp := range flag.Args() {
+		if len(fp) > maxlen {
+			maxlen = len(fp)
 		}
 	}
 
-	h := sha1.New()
-	h.Write(buf.Bytes())
-	bs := h.Sum(nil)
+	for _, filepath := range flag.Args() {
+		data, err := ioutil.ReadFile(filepath)
 
-	fmt.Println("path: ", filepath, " -- ext: ", ext)
-	fmt.Printf("hash: %x\n", bs)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		imgraw, _, err := image.Decode(bytes.NewReader(data))
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		imgstd := resize.Resize(width, 0, imgraw, resize.Lanczos3)
+		bounds := imgstd.Bounds()
+
+		buf := new(bytes.Buffer)
+
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				g, _, _, _ := color.GrayModel.Convert(imgstd.At(x, y)).RGBA()
+				g >>= 16 - (uint)(bitdepth)
+
+				binary.Write(buf, binary.LittleEndian, g)
+			}
+		}
+
+		h := sha1.New()
+		h.Write(buf.Bytes())
+		bs := h.Sum(nil)
+
+		if verbose {
+			fmt.Printf("%-"+strconv.Itoa(maxlen)+"s ", filepath)
+		}
+
+		fmt.Printf("%x\n", bs)
+	}
 }
