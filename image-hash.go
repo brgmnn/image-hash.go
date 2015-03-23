@@ -4,29 +4,34 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"encoding/binary"
+	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"path"
+
 	"image"
 	"image/color"
 	_ "image/jpeg"
-	"io/ioutil"
-	"log"
-	"os"
-	"path"
 
 	"github.com/nfnt/resize"
 )
 
 func main() {
-	if len(os.Args) < 2 {
+	var bd int
+	flag.IntVar(&bd, "bitdepth", 5, "The bitdepth.")
+	bitdepth := (uint16)(bd)
+
+	flag.Parse()
+	if len(flag.Args()) < 1 {
 		fmt.Println("No arguments given.")
 		return
 	}
 
-	filepath := os.Args[1]
+	filepath := flag.Args()[0]
 	ext := path.Ext(filepath)
 
 	data, _ := ioutil.ReadFile(filepath)
-
 	imgraw, _, err := image.Decode(bytes.NewReader(data))
 
 	if err != nil {
@@ -42,13 +47,10 @@ func main() {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			c := imgstd.At(x, y)
 			g, _, _, _ := color.GrayModel.Convert(c).RGBA()
-			g >>= 10
+			g >>= 16 - (uint)(bitdepth)
 
 			fmt.Println(g)
 			binary.Write(buf, binary.LittleEndian, g)
-			//binary.Write(buf, binary.LittleEndian, r>>12)
-			//binary.Write(buf, binary.LittleEndian, g>>12)
-			//binary.Write(buf, binary.LittleEndian, b>>12)
 		}
 	}
 
