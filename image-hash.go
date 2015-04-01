@@ -47,7 +47,7 @@ func min(a, b int) int {
 
 /*		--- hash_image() ---
  * Returns the hash of an image given its path. */
-func hash_image(filepath string, width, bitdepth uint16) []byte {
+func hash_image(filepath string, size, bitdepth uint16) []byte {
 	data, err := ioutil.ReadFile(filepath)
 
 	if err != nil {
@@ -60,7 +60,7 @@ func hash_image(filepath string, width, bitdepth uint16) []byte {
 		log.Fatal(err)
 	}
 
-	imgstd := resize.Resize((uint)(width), 0, imgraw, resize.Lanczos3)
+	imgstd := resize.Resize((uint)(size), 0, imgraw, resize.Lanczos3)
 	bounds := imgstd.Bounds()
 
 	buf := new(bytes.Buffer)
@@ -83,7 +83,7 @@ func hash_image(filepath string, width, bitdepth uint16) []byte {
  * Worker function, waits for jobs in the worker job queue and processes them
  * returning results in the dedicated channel for that job. Returns when the
  * worker job queue is closed. */
-func worker(wjobs chan Job, width, bitdepth uint16) {
+func worker(wjobs chan Job, size, bitdepth uint16) {
 	for {
 		j, more := <-wjobs
 
@@ -91,7 +91,7 @@ func worker(wjobs chan Job, width, bitdepth uint16) {
 			return
 		}
 
-		j.chash <- hash_image(j.path, width, bitdepth)
+		j.chash <- hash_image(j.path, size, bitdepth)
 	}
 }
 
@@ -117,14 +117,19 @@ func print_hashes(mjobs chan Job, done chan bool, verbose bool, maxlen int) {
 func main() {
 	bd := flag.Int("bitdepth", 5, "The number of bits to rescale each pixel "+
 		"to. Must be between 1 and 16.")
-	wd := flag.Int("size", 4, "What 'size' to rescale images to.")
-	v := flag.Bool("v", false, "Verbose output. Print image paths along "+
-		"with hashes.")
+	flag.IntVar(bd, "b", 5, "Short flag for 'bitdepth'.")
+
+	sz := flag.Int("size", 4, "What 'size' to rescale images to.")
+	flag.IntVar(sz, "s", 4, "Short flag for 'size'")
+
+	v := flag.Bool("verbose", false, "Verbose output. Print image paths "+
+		"along with hashes.")
+	flag.BoolVar(v, "v", false, "Short flag for 'verbose'.")
 
 	flag.Parse()
 
 	bitdepth := (uint16)(clamp(*bd, 1, 16))
-	width := (uint16)(clamp(*wd, 1, 200))
+	size := (uint16)(clamp(*sz, 1, 200))
 	verbose := (bool)(*v)
 
 	if len(flag.Args()) < 1 {
@@ -149,7 +154,7 @@ func main() {
 	go print_hashes(mjobs, done, verbose, maxlen)
 
 	for i := 0; i < cores; i++ {
-		go worker(wjobs, width, bitdepth)
+		go worker(wjobs, size, bitdepth)
 	}
 
 	for _, filepath := range flag.Args() {
