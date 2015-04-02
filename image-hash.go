@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha1"
 	"encoding/binary"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"runtime"
 	"strconv"
 
@@ -20,9 +22,17 @@ import (
 )
 
 type Job struct {
-	path       string
+	path  string
+	chash chan []byte
+}
+
+type Params struct {
+	bitdepth   uint16
 	hashlength uint16
-	chash      chan []byte
+	maxlen     int
+	size       uint16
+	verbose    bool
+	withlog    bool
 }
 
 /*		--- clamp() ---
@@ -33,7 +43,6 @@ func clamp(num, lo, hi int) int {
 	} else if num < lo {
 		return lo
 	}
-
 	return num
 }
 
@@ -48,22 +57,21 @@ func min(a, b int) int {
 
 /*		--- hash_image() ---
  * Returns the hash of an image given its path. */
-func hash_image(filepath string, size, bitdepth, hashlength uint16) []byte {
+func hash_image(filepath string, size, bitdepth, hashlength uint16) ([]byte, error) {
 	data, err := ioutil.ReadFile(filepath)
 
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	imgraw, _, err := image.Decode(bytes.NewReader(data))
 
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	imgstd := resize.Resize((uint)(size), 0, imgraw, resize.Lanczos3)
 	bounds := imgstd.Bounds()
-
 	buf := new(bytes.Buffer)
 
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
@@ -84,14 +92,14 @@ func hash_image(filepath string, size, bitdepth, hashlength uint16) []byte {
 		sum[i%hashlength] ^= shasum[i]
 	}
 
-	return sum
+	return sum, nil
 }
 
 /*		--- worker() ---
  * Worker function, waits for jobs in the worker job queue and processes them
  * returning results in the dedicated channel for that job. Returns when the
  * worker job queue is closed. */
-func worker(wjobs chan Job, size, bitdepth uint16) {
+func worker(wjobs chan Job, p Params) {
 	for {
 		j, more := <-wjobs
 
@@ -99,13 +107,22 @@ func worker(wjobs chan Job, size, bitdepth uint16) {
 			return
 		}
 
-		j.chash <- hash_image(j.path, size, bitdepth, j.hashlength)
+		hash, err := hash_image(j.path, p.size, p.bitdepth, p.hashlength)
+
+		if err == nil {
+			j.chash <- hash
+		} else {
+			if p.withlog {
+				log.Printf("Failed to hash image '%-"+strconv.Itoa(p.maxlen)+"s', %s", j.path, err)
+			}
+			close(j.chash)
+		}
 	}
 }
 
 /*		--- print_hashes() ---
  * Waits on jobs to complete and prints their hashes. */
-func print_hashes(mjobs chan Job, done chan bool, verbose bool, maxlen int) {
+func print_hashes(mjobs chan Job, done chan bool, p Params) {
 	for {
 		j, more := <-mjobs
 
@@ -114,11 +131,15 @@ func print_hashes(mjobs chan Job, done chan bool, verbose bool, maxlen int) {
 			return
 		}
 
-		if verbose {
-			fmt.Printf("%-"+strconv.Itoa(maxlen)+"s ", j.path)
-		}
+		hash, more := <-j.chash
 
-		fmt.Printf("%x\n", <-j.chash)
+		if more {
+			if p.verbose {
+				fmt.Printf("%-"+strconv.Itoa(p.maxlen)+"s ", j.path)
+			}
+
+			fmt.Printf("%x\n", hash)
+		}
 	}
 }
 
@@ -137,42 +158,57 @@ func main() {
 		"along with hashes.")
 	flag.BoolVar(v, "v", false, "Short flag for 'verbose'.")
 
+	wl := flag.Bool("log", false, "Display error messages on stderr when "+
+		"failing to hash an image.")
+	flag.BoolVar(wl, "l", false, "Short flag for 'log'.")
+
 	flag.Parse()
-
-	bitdepth := (uint16)(clamp(*bd, 1, 16))
-	size := (uint16)(clamp(*sz, 1, 200))
-	hashlength := (uint16)(clamp(*hl, 1, sha1.Size))
-	verbose := (bool)(*v)
-
-	if len(flag.Args()) < 1 {
-		fmt.Println("No images given.")
-		return
-	}
 
 	cores := runtime.NumCPU()
 	runtime.GOMAXPROCS(cores)
 
 	maxlen := 0
-	for _, fp := range flag.Args() {
-		if len(fp) > maxlen {
-			maxlen = len(fp)
+	if len(flag.Args()) > 0 {
+		for _, fp := range flag.Args() {
+			if len(fp) > maxlen {
+				maxlen = len(fp)
+			}
 		}
+	}
+
+	params := Params{
+		(uint16)(clamp(*bd, 1, 16)),
+		(uint16)(clamp(*hl, 1, sha1.Size)),
+		maxlen,
+		(uint16)(clamp(*sz, 1, 200)),
+		(bool)(*v),
+		(bool)(*wl),
 	}
 
 	done := make(chan bool)
 	wjobs := make(chan Job, 4)
 	mjobs := make(chan Job, 4)
 
-	go print_hashes(mjobs, done, verbose, maxlen)
+	go print_hashes(mjobs, done, params)
 
 	for i := 0; i < cores; i++ {
-		go worker(wjobs, size, bitdepth)
+		go worker(wjobs, params)
 	}
 
-	for _, filepath := range flag.Args() {
-		job := Job{filepath, hashlength, make(chan []byte)}
-		wjobs <- job
-		mjobs <- job
+	if len(flag.Args()) > 0 {
+		for _, filepath := range flag.Args() {
+			job := Job{filepath, make(chan []byte)}
+			wjobs <- job
+			mjobs <- job
+		}
+	} else {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			line := scanner.Text()
+			job := Job{line, make(chan []byte)}
+			wjobs <- job
+			mjobs <- job
+		}
 	}
 
 	close(wjobs)

@@ -3,13 +3,8 @@
 Hash an image based on what it looks like, Image Hash is intended to be used
 for identifying duplicate images.
 
-## Installation ##
 
-With a set up Go environment simply:
-
-    go install github.com/brgmnn/image-hash
-
-## Usage ##
+## Example Usage ##
 
 To get the hash of an image run:
 
@@ -24,9 +19,23 @@ You can hash multiple images as well:
 
 Pass the `-v` flag to get the image paths as well as their hashes:
 
-    $ image-hash cat.jpg house.jpg
+    $ image-hash -v cat.jpg house.jpg
     cat.jpg   fe1d10cc65aa0bad
     house.jpg 15496b40ebe0fc82
+
+You can also read images from `stdin` such as:
+
+    $ ls *.jpg | image-hash -v
+    cat.jpg   fe1d10cc65aa0bad
+    house.jpg 15496b40ebe0fc82
+
+
+## Installation ##
+
+With a set up Go environment simply:
+
+    go install github.com/brgmnn/image-hash
+
 
 ## Command line flags ##
 
@@ -38,6 +47,10 @@ Images are converted from colour to `bitdepth` grayscale. Defaults to 5.
 The length of image hashes in bytes. When reducing the
 length of a hash, extra bytes are bitwise XORed into the hash. Defaults to 8.
 
+##### -l, -log
+Passing this flag writes error messages to stderr when `image-hash` fails to
+hash an image. By default failed images are silently ignored.
+
 ##### -s, -size =`SIZE`
 The target image size in pixels when rescaling images. All
 images are rescaled to have a width of `size`. Images keep their aspect ratio
@@ -46,6 +59,7 @@ width. Defaults to 4.
 
 ##### -v, -verbose
 Print the image paths as well as their hashes.
+
 
 ## Dependencies ##
 
