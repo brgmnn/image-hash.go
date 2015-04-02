@@ -28,6 +28,25 @@ Pass the `-v` flag to get the image paths as well as their hashes:
     cat.jpg   fe1d10cc65aa0bad
     house.jpg 15496b40ebe0fc82
 
+## Command line flags ##
+
+##### -b, -bitdepth =`DEPTH`
+The bitdepth represents the image bitdepth to rescale to.
+Images are converted from colour to `bitdepth` grayscale. Defaults to 5.
+
+##### -hl, hashlength =`LENGTH`
+The length of image hashes in bytes. When reducing the
+length of a hash, extra bytes are bitwise XORed into the hash. Defaults to 8.
+
+##### -s, -size =`SIZE`
+The target image size in pixels when rescaling images. All
+images are rescaled to have a width of `size`. Images keep their aspect ratio
+and so may have differing heights, but all images are rescaled to the same
+width. Defaults to 4.
+
+##### -v, -verbose
+Print the image paths as well as their hashes.
+
 ## Dependencies ##
 
 Image Hash depends on `github.com/nfnt/resize` which requires at least Go 1.1.
