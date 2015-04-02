@@ -1,7 +1,15 @@
 # Image Hash #
 
 Hash an image based on what it looks like, Image Hash is intended to be used
-for identifying duplicate images.
+for identifying duplicate images. Currently supports JPEG and PNG image
+formats.
+
+
+### Why? ###
+
+I have a lot of reaction images and pictures saved from Reddit/4Chan etc.
+When it's time to do a spring clean of my files I like to delete duplicate
+images. And that's how this project was born.
 
 
 ## Example Usage ##
