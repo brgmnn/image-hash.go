@@ -20,8 +20,9 @@ import (
 )
 
 type Job struct {
-	path  string
-	chash chan []byte
+	path       string
+	hashlength uint16
+	chash      chan []byte
 }
 
 /*		--- clamp() ---
@@ -47,7 +48,7 @@ func min(a, b int) int {
 
 /*		--- hash_image() ---
  * Returns the hash of an image given its path. */
-func hash_image(filepath string, size, bitdepth uint16) []byte {
+func hash_image(filepath string, size, bitdepth, hashlength uint16) []byte {
 	data, err := ioutil.ReadFile(filepath)
 
 	if err != nil {
@@ -76,7 +77,14 @@ func hash_image(filepath string, size, bitdepth uint16) []byte {
 
 	h := sha1.New()
 	h.Write(buf.Bytes())
-	return h.Sum(nil)
+	shasum := h.Sum(nil)
+	sum := make([]byte, hashlength)
+
+	for i := uint16(0); i < uint16(len(shasum)); i++ {
+		sum[i%hashlength] ^= shasum[i]
+	}
+
+	return sum
 }
 
 /*		--- worker() ---
@@ -91,7 +99,7 @@ func worker(wjobs chan Job, size, bitdepth uint16) {
 			return
 		}
 
-		j.chash <- hash_image(j.path, size, bitdepth)
+		j.chash <- hash_image(j.path, size, bitdepth, j.hashlength)
 	}
 }
 
@@ -122,6 +130,9 @@ func main() {
 	sz := flag.Int("size", 4, "What 'size' to rescale images to.")
 	flag.IntVar(sz, "s", 4, "Short flag for 'size'")
 
+	hl := flag.Int("hashlength", 8, "Hash length in bytes.")
+	flag.IntVar(hl, "hl", 8, "Short flag for 'hashlength'")
+
 	v := flag.Bool("verbose", false, "Verbose output. Print image paths "+
 		"along with hashes.")
 	flag.BoolVar(v, "v", false, "Short flag for 'verbose'.")
@@ -130,6 +141,7 @@ func main() {
 
 	bitdepth := (uint16)(clamp(*bd, 1, 16))
 	size := (uint16)(clamp(*sz, 1, 200))
+	hashlength := (uint16)(clamp(*hl, 1, sha1.Size))
 	verbose := (bool)(*v)
 
 	if len(flag.Args()) < 1 {
@@ -158,7 +170,7 @@ func main() {
 	}
 
 	for _, filepath := range flag.Args() {
-		job := Job{filepath, make(chan []byte)}
+		job := Job{filepath, hashlength, make(chan []byte)}
 		wjobs <- job
 		mjobs <- job
 	}

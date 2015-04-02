@@ -14,19 +14,19 @@ With a set up Go environment simply:
 To get the hash of an image run:
 
     $ image-hash /path/to/picture.jpg
-    88014ee65ffc1afc519edfde3a561151278281f4
+    fe1d10cc65aa0bad
 
 You can hash multiple images as well:
 
     $ image-hash cat.jpg house.jpg
-    88014ee65ffc1afc519edfde3a561151278281f4
-    62680e03c4499e23c167e5492fa962a1b646800a
+    fe1d10cc65aa0bad
+    15496b40ebe0fc82
 
 Pass the `-v` flag to get the image paths as well as their hashes:
 
     $ image-hash cat.jpg house.jpg
-    cat.jpg   88014ee65ffc1afc519edfde3a561151278281f4
-    house.jpg 62680e03c4499e23c167e5492fa962a1b646800a
+    cat.jpg   fe1d10cc65aa0bad
+    house.jpg 15496b40ebe0fc82
 
 ## Dependencies ##
 
