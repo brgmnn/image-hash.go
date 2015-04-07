@@ -34,7 +34,7 @@ Pass the `-v` flag to get the image paths as well as their hashes:
 You can also read images from `stdin` such as:
 
     $ ls *.jpg | image-hash -v
-    cat.jpg   fe1d10cc65aa0bad
+    cat.jpg fe1d10cc65aa0bad
     house.jpg 15496b40ebe0fc82
 
 
@@ -51,9 +51,14 @@ With a set up Go environment simply:
 The bitdepth represents the image bitdepth to rescale to.
 Images are converted from colour to `bitdepth` grayscale. Defaults to 5.
 
-##### -hl, hashlength =`LENGTH`
+##### -hl, -hashlength =`LENGTH`
 The length of image hashes in bytes. When reducing the
 length of a hash, extra bytes are bitwise XORed into the hash. Defaults to 8.
+
+##### -j, -jobs = `MAXJOBS`
+The maximum number of hashing jobs to run in parallel. Must be at least 1 and
+no more than 128. Defaults to the number of CPU cores on the machine as
+provided by golang's `runtime.NumCPU()`.
 
 ##### -l, -log
 Passing this flag writes error messages to stderr when `image-hash` fails to

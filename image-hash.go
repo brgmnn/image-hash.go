@@ -57,7 +57,7 @@ func min(a, b int) int {
 
 /*		--- hash_image() ---
  * Returns the hash of an image given its path. */
-func hash_image(filepath string, size, bitdepth, hashlength uint16) ([]byte, error) {
+func hash_image(filepath string, p Params) ([]byte, error) {
 	data, err := ioutil.ReadFile(filepath)
 
 	if err != nil {
@@ -70,14 +70,14 @@ func hash_image(filepath string, size, bitdepth, hashlength uint16) ([]byte, err
 		return nil, err
 	}
 
-	imgstd := resize.Resize((uint)(size), 0, imgraw, resize.Lanczos3)
+	imgstd := resize.Resize((uint)(p.size), 0, imgraw, resize.Lanczos3)
 	bounds := imgstd.Bounds()
 	buf := new(bytes.Buffer)
 
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			g, _, _, _ := color.GrayModel.Convert(imgstd.At(x, y)).RGBA()
-			g >>= 16 - bitdepth
+			g >>= 16 - p.bitdepth
 
 			binary.Write(buf, binary.LittleEndian, g)
 		}
@@ -86,10 +86,10 @@ func hash_image(filepath string, size, bitdepth, hashlength uint16) ([]byte, err
 	h := sha1.New()
 	h.Write(buf.Bytes())
 	shasum := h.Sum(nil)
-	sum := make([]byte, hashlength)
+	sum := make([]byte, p.hashlength)
 
 	for i := uint16(0); i < uint16(len(shasum)); i++ {
-		sum[i%hashlength] ^= shasum[i]
+		sum[i%p.hashlength] ^= shasum[i]
 	}
 
 	return sum, nil
@@ -107,13 +107,14 @@ func worker(wjobs chan Job, p Params) {
 			return
 		}
 
-		hash, err := hash_image(j.path, p.size, p.bitdepth, p.hashlength)
+		hash, err := hash_image(j.path, p)
 
 		if err == nil {
 			j.chash <- hash
 		} else {
 			if p.withlog {
-				log.Printf("Failed to hash image '%-"+strconv.Itoa(p.maxlen)+"s', %s", j.path, err)
+				log.Printf("Failed to hash image '%-"+strconv.Itoa(p.maxlen)+
+					"s', %s", j.path, err)
 			}
 			close(j.chash)
 		}
@@ -162,10 +163,11 @@ func main() {
 		"failing to hash an image.")
 	flag.BoolVar(wl, "l", false, "Short flag for 'log'.")
 
-	flag.Parse()
+	jb := flag.Int("jobs", runtime.NumCPU(), "The maximum number of hashing "+
+		"jobs to run in parallel.")
+	flag.IntVar(jb, "j", runtime.NumCPU(), "Short flag for 'jobs'.")
 
-	cores := runtime.NumCPU()
-	runtime.GOMAXPROCS(cores)
+	flag.Parse()
 
 	maxlen := 0
 	if len(flag.Args()) > 0 {
@@ -185,13 +187,16 @@ func main() {
 		(bool)(*wl),
 	}
 
+	njobs := clamp(*jb, 1, 128)
+	runtime.GOMAXPROCS(njobs)
+
 	done := make(chan bool)
-	wjobs := make(chan Job, 4)
-	mjobs := make(chan Job, 4)
+	wjobs := make(chan Job, njobs)
+	mjobs := make(chan Job, njobs)
 
 	go print_hashes(mjobs, done, params)
 
-	for i := 0; i < cores; i++ {
+	for i := 0; i < njobs; i++ {
 		go worker(wjobs, params)
 	}
 
