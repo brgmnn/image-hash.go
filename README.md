@@ -78,4 +78,4 @@ Print the image paths as well as their hashes.
 
 ## Dependencies ##
 
-Image Hash depends on `github.com/nfnt/resize` which requires at least Go 1.1.
+Image Hash depends on [nfnt/resize](https://github.com/nfnt/resize) which requires at least Go 1.1.
