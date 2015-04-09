@@ -1,5 +1,7 @@
 # Image Hash #
 
+[![Build Status](https://travis-ci.org/brgmnn/image-hash.svg)](https://travis-ci.org/brgmnn/image-hash)
+
 Hash an image based on what it looks like, Image Hash is intended to be used
 for identifying duplicate images. Currently supports JPEG and PNG image
 formats.
